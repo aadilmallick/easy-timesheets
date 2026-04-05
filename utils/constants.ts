@@ -6,8 +6,8 @@ export function verifyEnv(env: string): string {
 }
 
 export const ENV_VARS = {
-    CLERK_PUBLISHABLE_KEY: verifyEnv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"),
     DATABASE_URL: verifyEnv("DATABASE_URL"),
+    RESEND_API_KEY: verifyEnv("RESEND_API_KEY"),
     CLERK_SECRET_KEY: verifyEnv("CLERK_SECRET_KEY"),
-    // RESEND_API_KEY: verifyEnv("RESEND_API_KEY"), // todo: ADD later, prompt user for it when you need it.
+    CLERK_PUBLISHABLE_KEY: verifyEnv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"),
 };
