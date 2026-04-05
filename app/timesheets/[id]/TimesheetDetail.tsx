@@ -10,6 +10,7 @@ import {
   submitTimesheet,
   updateTimesheet,
 } from "@/app/actions/timesheets";
+import { getTimesheetDetailForPolling } from "@/app/actions/polling";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTimesheetPolling } from "@/hooks/useTimesheetPolling";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
@@ -226,9 +228,15 @@ export function TimesheetDetail({
   employeeName: string;
 }) {
   const [isPending, startTransition] = useTransition();
-  const isDraft = timesheet.status === "draft";
+  const { data } = useTimesheetPolling({
+    queryKey: ["timesheet-detail", timesheet.id],
+    queryFn: () => getTimesheetDetailForPolling(timesheet.id),
+  });
+  const liveTimesheet = data?.timesheet ?? timesheet;
+  const liveEntries = data?.entries ?? entries;
+  const isDraft = liveTimesheet.status === "draft";
 
-  const totalHours = entries.reduce((sum, e) => sum + Number(e.hours), 0);
+  const totalHours = liveEntries.reduce((sum, e) => sum + Number(e.hours), 0);
 
   const handleSubmit = () => {
     startTransition(async () => {
@@ -259,27 +267,27 @@ export function TimesheetDetail({
               ← Dashboard
             </Link>
           </div>
-          <h1 className="text-2xl font-bold">{timesheet.title}</h1>
+          <h1 className="text-2xl font-bold">{liveTimesheet.title}</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {formatDate(timesheet.start_date)} –{" "}
-            {formatDate(timesheet.end_date)}
+            {formatDate(liveTimesheet.start_date)} –{" "}
+            {formatDate(liveTimesheet.end_date)}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
-              statusColors[timesheet.status]
+              statusColors[liveTimesheet.status]
             }`}
           >
-            {timesheet.status}
+            {liveTimesheet.status}
           </span>
           {isDraft && (
             <>
-              <EditTimesheetDialog timesheet={timesheet} />
+              <EditTimesheetDialog timesheet={liveTimesheet} />
               <Button
                 size="sm"
                 onClick={handleSubmit}
-                disabled={isPending || entries.length === 0}
+                disabled={isPending || liveEntries.length === 0}
               >
                 Submit for Approval
               </Button>
@@ -294,7 +302,7 @@ export function TimesheetDetail({
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
         <div>
           <p className="text-muted-foreground">Supervisor</p>
-          <p className="font-medium">{timesheet.supervisor_email}</p>
+          <p className="font-medium">{liveTimesheet.supervisor_email}</p>
         </div>
         <div>
           <p className="text-muted-foreground">Employee</p>
@@ -312,11 +320,11 @@ export function TimesheetDetail({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Time Entries</h2>
-          {isDraft && <AddEntryDialog timesheetId={timesheet.id} />}
-        </div>
+           {isDraft && <AddEntryDialog timesheetId={liveTimesheet.id} />}
+         </div>
 
-        {entries.length === 0
-          ? (
+         {liveEntries.length === 0
+           ? (
             <p className="text-muted-foreground text-sm py-8 text-center">
               No entries yet.{isDraft ? " Add hours to get started." : ""}
             </p>
@@ -335,7 +343,7 @@ export function TimesheetDetail({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {entries.map((entry) => (
+                 {liveEntries.map((entry) => (
                   <TableRow key={entry.id}>
                     <TableCell>{formatDate(entry.date)}</TableCell>
                     <TableCell>{Number(entry.hours).toFixed(1)}</TableCell>
