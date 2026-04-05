@@ -176,7 +176,7 @@ export class CloudDatabase {
   static async deleteTimesheet(id: string, employeeUserId: string): Promise<void> {
     await sql`
       DELETE FROM timesheets
-      WHERE id = ${id} AND employee_user_id = ${employeeUserId} AND status = 'draft'
+      WHERE id = ${id} AND employee_user_id = ${employeeUserId}
     `;
   }
 

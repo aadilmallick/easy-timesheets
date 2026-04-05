@@ -11,6 +11,17 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { Timesheet } from "@/db/CloudDatabase";
 import { deleteTimesheet, submitTimesheet } from "@/app/actions/timesheets";
 import { useTransition } from "react";
@@ -30,6 +41,48 @@ function formatDate(d: string) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function DeleteTimesheetDialog({
+  id,
+  title,
+  isPending,
+  onConfirm,
+}: {
+  id: string;
+  title: string;
+  isPending: boolean;
+  onConfirm: (id: string) => void;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger
+        render={
+          <Button variant="destructive" size="sm" disabled={isPending} />
+        }
+      >
+        Delete
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete timesheet?</AlertDialogTitle>
+          <AlertDialogDescription>
+            <strong>&quot;{title}&quot;</strong> will be permanently deleted.
+            This cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            render={<Button variant="destructive" />}
+            onClick={() => onConfirm(id)}
+          >
+            Delete permanently
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 }
 
 function MyTimesheetsTable({ timesheets }: { timesheets: Timesheet[] }) {
@@ -100,25 +153,21 @@ function MyTimesheetsTable({ timesheets }: { timesheets: Timesheet[] }) {
                   View
                 </Link>
                 {t.status === "draft" && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSubmit(t.id)}
-                      disabled={isPending}
-                    >
-                      Submit
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(t.id)}
-                      disabled={isPending}
-                    >
-                      Delete
-                    </Button>
-                  </>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSubmit(t.id)}
+                    disabled={isPending}
+                  >
+                    Submit
+                  </Button>
                 )}
+                <DeleteTimesheetDialog
+                  id={t.id}
+                  title={t.title}
+                  isPending={isPending}
+                  onConfirm={handleDelete}
+                />
               </div>
             </TableCell>
           </TableRow>
