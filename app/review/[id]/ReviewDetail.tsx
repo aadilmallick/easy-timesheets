@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import type { Timesheet, TimesheetEntry } from "@/db/CloudDatabase";
 import { approveEntry, rejectEntry } from "@/app/actions/timesheets";
+import { getReviewDetailForPolling } from "@/app/actions/polling";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -15,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTimesheetPolling } from "@/hooks/useTimesheetPolling";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
@@ -45,8 +47,14 @@ export function ReviewDetail({
   entries: TimesheetEntry[];
 }) {
   const [isPending, startTransition] = useTransition();
-  const canReview = timesheet.status === "submitted";
-  const totalHours = entries.reduce((sum, e) => sum + Number(e.hours), 0);
+  const { data } = useTimesheetPolling({
+    queryKey: ["review-detail", timesheet.id],
+    queryFn: () => getReviewDetailForPolling(timesheet.id),
+  });
+  const liveTimesheet = data?.timesheet ?? timesheet;
+  const liveEntries = data?.entries ?? entries;
+  const canReview = liveTimesheet.status === "submitted";
+  const totalHours = liveEntries.reduce((sum, e) => sum + Number(e.hours), 0);
 
   const handleApprove = (entryId: string) => {
     startTransition(async () => {
@@ -76,16 +84,17 @@ export function ReviewDetail({
         </Link>
         <div className="flex items-start justify-between mt-2">
           <div>
-            <h1 className="text-2xl font-bold">{timesheet.title}</h1>
+            <h1 className="text-2xl font-bold">{liveTimesheet.title}</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Submitted by {timesheet.employee_email} ·{" "}
-              {formatDate(timesheet.start_date)} – {formatDate(timesheet.end_date)}
+              Submitted by {liveTimesheet.employee_email} ·{" "}
+              {formatDate(liveTimesheet.start_date)} –{" "}
+              {formatDate(liveTimesheet.end_date)}
             </p>
           </div>
           <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusColors[timesheet.status]}`}
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusColors[liveTimesheet.status]}`}
           >
-            {timesheet.status}
+            {liveTimesheet.status}
           </span>
         </div>
       </div>
@@ -99,12 +108,12 @@ export function ReviewDetail({
         </div>
         <div>
           <p className="text-muted-foreground">Submitted</p>
-          <p className="font-medium">
-            {timesheet.submitted_at
-              ? formatDate(timesheet.submitted_at)
-              : "—"}
-          </p>
-        </div>
+            <p className="font-medium">
+              {liveTimesheet.submitted_at
+                ? formatDate(liveTimesheet.submitted_at)
+                : "—"}
+            </p>
+          </div>
       </div>
 
       <Separator />
@@ -115,22 +124,22 @@ export function ReviewDetail({
         {!canReview && (
           <div
             className={`rounded-md px-4 py-3 text-sm ${
-              timesheet.status === "approved"
+              liveTimesheet.status === "approved"
                 ? "bg-green-50 text-green-700 border border-green-200"
-                : timesheet.status === "rejected"
+                : liveTimesheet.status === "rejected"
                   ? "bg-red-50 text-red-700 border border-red-200"
                   : "bg-gray-50 text-gray-600 border border-gray-200"
             }`}
           >
-            {timesheet.status === "approved"
+            {liveTimesheet.status === "approved"
               ? "All entries have been approved."
-              : timesheet.status === "rejected"
+              : liveTimesheet.status === "rejected"
                 ? "This timesheet has been rejected."
                 : "This timesheet is in draft and cannot be reviewed yet."}
           </div>
         )}
 
-        {entries.length === 0 ? (
+        {liveEntries.length === 0 ? (
           <p className="text-muted-foreground text-sm py-8 text-center">
             No entries to review.
           </p>
@@ -148,7 +157,7 @@ export function ReviewDetail({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {entries.map((entry) => (
+              {liveEntries.map((entry) => (
                 <TableRow key={entry.id}>
                   <TableCell>{formatDate(entry.date)}</TableCell>
                   <TableCell>{Number(entry.hours).toFixed(1)}</TableCell>

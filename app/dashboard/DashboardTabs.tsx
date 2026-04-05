@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { Timesheet } from "@/db/CloudDatabase";
 import { deleteTimesheet, submitTimesheet } from "@/app/actions/timesheets";
+import { getDashboardTimesheetsForPolling } from "@/app/actions/polling";
+import { useTimesheetPolling } from "@/hooks/useTimesheetPolling";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -236,27 +238,33 @@ export function DashboardTabs({
   myTimesheets: Timesheet[];
   assignedTimesheets: Timesheet[];
 }) {
+  const { data } = useTimesheetPolling({
+    queryKey: ["dashboard-timesheets"],
+    queryFn: getDashboardTimesheetsForPolling,
+  });
+  const polledData = data ?? { myTimesheets, assignedTimesheets };
+
   return (
     <Tabs defaultValue="mine">
       <TabsList>
         <TabsTrigger value="mine">
           My Timesheets{" "}
           <Badge variant="secondary" className="ml-1.5">
-            {myTimesheets.length}
+            {polledData.myTimesheets.length}
           </Badge>
         </TabsTrigger>
         <TabsTrigger value="assigned">
           Assigned To Me{" "}
           <Badge variant="secondary" className="ml-1.5">
-            {assignedTimesheets.length}
+            {polledData.assignedTimesheets.length}
           </Badge>
         </TabsTrigger>
       </TabsList>
       <TabsContent value="mine" className="mt-4">
-        <MyTimesheetsTable timesheets={myTimesheets} />
+        <MyTimesheetsTable timesheets={polledData.myTimesheets} />
       </TabsContent>
       <TabsContent value="assigned" className="mt-4">
-        <AssignedTimesheetsTable timesheets={assignedTimesheets} />
+        <AssignedTimesheetsTable timesheets={polledData.assignedTimesheets} />
       </TabsContent>
     </Tabs>
   );
