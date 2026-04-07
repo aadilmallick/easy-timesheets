@@ -1,8 +1,33 @@
+import type { Metadata } from "next";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { CloudDatabase } from "@/db/CloudDatabase";
 import { DashboardTabs } from "./DashboardTabs";
 import { CreateTimesheetDialog } from "./CreateTimesheetDialog";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+  description:
+    "View your draft, submitted, approved, and assigned timesheets from the Easy Timesheets dashboard.",
+  alternates: {
+    canonical: "/dashboard",
+  },
+  robots: {
+    index: false,
+    follow: false,
+  },
+  openGraph: {
+    title: "Timesheet Dashboard",
+    description:
+      "Manage your timesheets and review assigned approvals from a single dashboard.",
+    url: "/dashboard",
+  },
+  twitter: {
+    title: "Timesheet Dashboard",
+    description:
+      "Manage your timesheets and review assigned approvals from a single dashboard.",
+  },
+};
 
 export default async function DashboardPage() {
   const { userId } = await auth();

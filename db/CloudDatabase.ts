@@ -220,6 +220,25 @@ export class CloudDatabase {
     return rows[0] as TimesheetEntry;
   }
 
+  static async updateEntry(
+    id: string,
+    params: {
+      timesheetId: string;
+      hours: number;
+      description?: string;
+    }
+  ): Promise<TimesheetEntry | null> {
+    const rows = await sql`
+      UPDATE timesheet_entries SET
+        hours = ${params.hours},
+        description = ${params.description ?? null},
+        updated_at = NOW()
+      WHERE id = ${id} AND timesheet_id = ${params.timesheetId}
+      RETURNING *
+    `;
+    return (rows[0] as TimesheetEntry) ?? null;
+  }
+
   static async getEntriesForTimesheet(timesheetId: string): Promise<TimesheetEntry[]> {
     const rows = await sql`
       SELECT * FROM timesheet_entries
@@ -229,8 +248,13 @@ export class CloudDatabase {
     return rows as TimesheetEntry[];
   }
 
-  static async deleteEntry(id: string): Promise<void> {
-    await sql`DELETE FROM timesheet_entries WHERE id = ${id}`;
+  static async deleteEntry(id: string, timesheetId: string): Promise<boolean> {
+    const rows = await sql`
+      DELETE FROM timesheet_entries
+      WHERE id = ${id} AND timesheet_id = ${timesheetId}
+      RETURNING id
+    `;
+    return rows.length > 0;
   }
 
   static async approveEntry(id: string): Promise<TimesheetEntry> {

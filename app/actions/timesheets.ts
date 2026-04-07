@@ -48,6 +48,12 @@ const addEntrySchema = z.object({
   description: z.string().optional(),
 });
 
+const updateEntrySchema = z.object({
+  timesheetId: z.string().uuid(),
+  hours: z.coerce.number().min(0.5).max(24),
+  description: z.string().optional(),
+});
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 export async function createTimesheet(formData: FormData) {
@@ -162,7 +168,7 @@ export async function addEntry(formData: FormData): Promise<{ error?: string }> 
     return { error: "Not authorized" };
   }
   if (timesheet.status !== "draft") {
-    return { error: "Cannot edit a submitted timesheet" };
+    return { error: "Only draft timesheets can be edited" };
   }
 
   await CloudDatabase.addEntry({
@@ -186,9 +192,53 @@ export async function deleteEntry(
   if (!timesheet || timesheet.employee_user_id !== dbUser.id) {
     return { error: "Not authorized" };
   }
+  if (timesheet.status !== "draft") {
+    return { error: "Only draft timesheets can be edited" };
+  }
 
-  await CloudDatabase.deleteEntry(entryId);
+  const deleted = await CloudDatabase.deleteEntry(entryId, timesheetId);
+  if (!deleted) {
+    return { error: "Entry not found" };
+  }
+
   revalidatePath(`/timesheets/${timesheetId}`);
+  return {};
+}
+
+export async function updateEntry(
+  entryId: string,
+  formData: FormData
+): Promise<{ error?: string }> {
+  const dbUser = await getDbUser();
+
+  const parsed = updateEntrySchema.safeParse({
+    timesheetId: formData.get("timesheetId"),
+    hours: formData.get("hours"),
+    description: formData.get("description") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
+  }
+
+  const timesheet = await CloudDatabase.getTimesheetById(parsed.data.timesheetId);
+  if (!timesheet || timesheet.employee_user_id !== dbUser.id) {
+    return { error: "Not authorized" };
+  }
+  if (timesheet.status !== "draft") {
+    return { error: "Only draft timesheets can be edited" };
+  }
+
+  const entry = await CloudDatabase.updateEntry(entryId, {
+    timesheetId: parsed.data.timesheetId,
+    hours: parsed.data.hours,
+    description: parsed.data.description,
+  });
+  if (!entry) {
+    return { error: "Entry not found" };
+  }
+
+  revalidatePath(`/timesheets/${parsed.data.timesheetId}`);
   return {};
 }
 

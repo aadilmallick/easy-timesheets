@@ -8,13 +8,13 @@ import {
   addEntry,
   deleteEntry,
   submitTimesheet,
+  updateEntry,
   updateTimesheet,
 } from "@/app/actions/timesheets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -117,6 +117,85 @@ function AddEntryDialog({ timesheetId }: { timesheetId: string }) {
             </Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? "Adding..." : "Add Entry"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditEntryDialog({
+  entry,
+  timesheetId,
+}: {
+  entry: TimesheetEntry;
+  timesheetId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    formData.set("timesheetId", timesheetId);
+
+    startTransition(async () => {
+      const res = await updateEntry(entry.id, formData);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Entry updated");
+        setOpen(false);
+      }
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+        Edit
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Entry</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="mt-2 space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor={`edit-hours-${entry.id}`}>Hours</Label>
+            <Input
+              id={`edit-hours-${entry.id}`}
+              name="hours"
+              type="number"
+              step="0.5"
+              min="0.5"
+              max="24"
+              defaultValue={String(Number(entry.hours))}
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`edit-description-${entry.id}`}>
+              Description (optional)
+            </Label>
+            <Textarea
+              id={`edit-description-${entry.id}`}
+              name="description"
+              defaultValue={entry.description ?? ""}
+              placeholder="What did you work on?"
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </form>
@@ -353,15 +432,21 @@ export function TimesheetDetail({
                     </TableCell>
                     {isDraft && (
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteEntry(entry.id)}
-                          disabled={isPending}
-                        >
-                          Remove
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <EditEntryDialog
+                            entry={entry}
+                            timesheetId={timesheet.id}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteEntry(entry.id)}
+                            disabled={isPending}
+                          >
+                            Remove
+                          </Button>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
