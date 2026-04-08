@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { CloudDatabase } from "@/db/CloudDatabase";
+import { isDateWithinRange } from "@/lib/date";
 import { sendTimesheetSubmittedEmail } from "@/lib/email";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -169,6 +170,15 @@ export async function addEntry(formData: FormData): Promise<{ error?: string }> 
   }
   if (timesheet.status !== "draft") {
     return { error: "Only draft timesheets can be edited" };
+  }
+  if (
+    !isDateWithinRange(
+      parsed.data.date,
+      timesheet.start_date,
+      timesheet.end_date
+    )
+  ) {
+    return { error: "Entry date must be within the timesheet range" };
   }
 
   await CloudDatabase.addEntry({

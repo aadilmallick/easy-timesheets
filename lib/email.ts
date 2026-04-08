@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { formatDate } from "@/lib/date";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -21,19 +22,8 @@ export async function sendTimesheetSubmittedEmail(params: {
 
   const reviewUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/review/${params.timesheetId}`;
 
-  const formattedStart = new Date(params.startDate).toLocaleDateString(
-    "en-US",
-    {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    },
-  );
-  const formattedEnd = new Date(params.endDate).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const formattedStart = formatDate(params.startDate);
+  const formattedEnd = formatDate(params.endDate);
 
   await resend.emails.send({
     from: `Timesheets <${resendEmail}>`,

@@ -7,6 +7,7 @@ import type { Timesheet, TimesheetEntry } from "@/db/CloudDatabase";
 import { approveEntry, rejectEntry } from "@/app/actions/timesheets";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { formatDate } from "@/lib/date";
 import {
   Table,
   TableBody,
@@ -28,14 +29,6 @@ const entryStatusColors: Record<string, string> = {
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
 };
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export function ReviewDetail({
   timesheet,

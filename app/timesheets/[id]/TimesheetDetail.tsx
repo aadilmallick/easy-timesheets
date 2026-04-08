@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { formatDate, getDateOnlyValue } from "@/lib/date";
 import {
   Dialog,
   DialogContent,
@@ -45,15 +46,15 @@ const entryStatusColors: Record<string, string> = {
   rejected: "bg-red-100 text-red-700",
 };
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function AddEntryDialog({ timesheetId }: { timesheetId: string }) {
+function AddEntryDialog({
+  timesheetId,
+  startDate,
+  endDate,
+}: {
+  timesheetId: string;
+  startDate: string;
+  endDate: string;
+}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -83,7 +84,14 @@ function AddEntryDialog({ timesheetId }: { timesheetId: string }) {
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-1.5">
             <Label htmlFor="date">Date</Label>
-            <Input id="date" name="date" type="date" required />
+            <Input
+              id="date"
+              name="date"
+              type="date"
+              min={getDateOnlyValue(startDate)}
+              max={getDateOnlyValue(endDate)}
+              required
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="hours">Hours</Label>
@@ -252,7 +260,7 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
                 id="edit-start"
                 name="startDate"
                 type="date"
-                defaultValue={new Date(timesheet.start_date).toISOString().slice(0, 10)}
+                defaultValue={getDateOnlyValue(timesheet.start_date)}
                 required
               />
             </div>
@@ -262,7 +270,7 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
                 id="edit-end"
                 name="endDate"
                 type="date"
-                defaultValue={new Date(timesheet.end_date).toISOString().slice(0, 10)}
+                defaultValue={getDateOnlyValue(timesheet.end_date)}
                 required
               />
             </div>
@@ -391,7 +399,13 @@ export function TimesheetDetail({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Time Entries</h2>
-          {isDraft && <AddEntryDialog timesheetId={timesheet.id} />}
+          {isDraft && (
+            <AddEntryDialog
+              timesheetId={timesheet.id}
+              startDate={timesheet.start_date}
+              endDate={timesheet.end_date}
+            />
+          )}
         </div>
 
         {entries.length === 0
