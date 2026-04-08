@@ -4,6 +4,8 @@ const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
+const resendEmail = "team@aadilmallick.com";
+
 export async function sendTimesheetSubmittedEmail(params: {
   supervisorEmail: string;
   employeeName: string;
@@ -19,11 +21,14 @@ export async function sendTimesheetSubmittedEmail(params: {
 
   const reviewUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/review/${params.timesheetId}`;
 
-  const formattedStart = new Date(params.startDate).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const formattedStart = new Date(params.startDate).toLocaleDateString(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    },
+  );
   const formattedEnd = new Date(params.endDate).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -31,7 +36,7 @@ export async function sendTimesheetSubmittedEmail(params: {
   });
 
   await resend.emails.send({
-    from: "Timesheets <onboarding@resend.dev>",
+    from: `Timesheets <${resendEmail}>`,
     to: params.supervisorEmail,
     subject: "Timesheet Submitted for Approval",
     html: `
