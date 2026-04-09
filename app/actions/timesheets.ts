@@ -181,6 +181,14 @@ export async function addEntry(formData: FormData): Promise<{ error?: string }> 
     return { error: "Entry date must be within the timesheet range" };
   }
 
+  const existingEntry = await CloudDatabase.getEntryForTimesheetOnDate(
+    parsed.data.timesheetId,
+    parsed.data.date
+  );
+  if (existingEntry) {
+    return { error: "An entry already exists for that date" };
+  }
+
   await CloudDatabase.addEntry({
     timesheetId: parsed.data.timesheetId,
     date: parsed.data.date,

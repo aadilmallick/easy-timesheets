@@ -50,10 +50,12 @@ function AddEntryDialog({
   timesheetId,
   startDate,
   endDate,
+  existingDates,
 }: {
   timesheetId: string;
   startDate: string;
   endDate: string;
+  existingDates: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -62,6 +64,13 @@ function AddEntryDialog({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set("timesheetId", timesheetId);
+
+    const selectedDate = getDateOnlyValue(String(formData.get("date") ?? ""));
+    if (existingDates.includes(selectedDate)) {
+      toast.error("An entry already exists for that date");
+      return;
+    }
+
     startTransition(async () => {
       const res = await addEntry(formData);
       if (res.error) {
@@ -404,6 +413,7 @@ export function TimesheetDetail({
               timesheetId={timesheet.id}
               startDate={timesheet.start_date}
               endDate={timesheet.end_date}
+              existingDates={entries.map((entry) => getDateOnlyValue(entry.date))}
             />
           )}
         </div>

@@ -220,6 +220,18 @@ export class CloudDatabase {
     return rows[0] as TimesheetEntry;
   }
 
+  static async getEntryForTimesheetOnDate(
+    timesheetId: string,
+    date: string
+  ): Promise<TimesheetEntry | null> {
+    const rows = await sql`
+      SELECT * FROM timesheet_entries
+      WHERE timesheet_id = ${timesheetId} AND date = ${date}
+      LIMIT 1
+    `;
+    return (rows[0] as TimesheetEntry) ?? null;
+  }
+
   static async updateEntry(
     id: string,
     params: {
