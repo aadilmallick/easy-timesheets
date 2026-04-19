@@ -7,6 +7,7 @@ import type { Timesheet, TimesheetEntry } from "@/db/CloudDatabase";
 import {
   addEntry,
   deleteEntry,
+  sendTestSupervisorEmail,
   submitTimesheet,
   updateEntry,
   updateTimesheet,
@@ -316,10 +317,12 @@ export function TimesheetDetail({
   timesheet,
   entries,
   employeeName,
+  showTestEmailButton,
 }: {
   timesheet: Timesheet;
   entries: TimesheetEntry[];
   employeeName: string;
+  showTestEmailButton: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const isDraft = timesheet.status === "draft";
@@ -339,6 +342,14 @@ export function TimesheetDetail({
       const res = await deleteEntry(entryId, timesheet.id);
       if (res.error) toast.error(res.error);
       else toast.success("Entry removed");
+    });
+  };
+
+  const handleTestEmail = () => {
+    startTransition(async () => {
+      const res = await sendTestSupervisorEmail(timesheet.id);
+      if (res.error) toast.error(res.error);
+      else toast.success("Test email sent");
     });
   };
 
@@ -369,6 +380,16 @@ export function TimesheetDetail({
           >
             {timesheet.status}
           </span>
+          {showTestEmailButton && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestEmail}
+              disabled={isPending}
+            >
+              Test Email
+            </Button>
+          )}
           {isDraft && (
             <>
               <EditTimesheetDialog timesheet={timesheet} />

@@ -32,7 +32,8 @@ export default async function TimesheetPage({
       <TimesheetDetail
         timesheet={timesheet}
         entries={entries}
-        employeeName={name || email}
+        employeeName={name || dbUser.email}
+        showTestEmailButton={process.env.NODE_ENV === "development"}
       />
     </div>
   );

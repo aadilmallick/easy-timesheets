@@ -6,7 +6,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { CloudDatabase } from "@/db/CloudDatabase";
 import { isDateWithinRange } from "@/lib/date";
-import { sendTimesheetSubmittedEmail } from "@/lib/email";
+import { normalizeEmail } from "@/lib/email-address";
+import {
+  sendSupervisorTestEmail,
+  sendTimesheetSubmittedEmail,
+} from "@/lib/email";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,7 +43,11 @@ const createTimesheetSchema = z.object({
   title: z.string().min(1, "Title is required"),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().min(1, "End date is required"),
-  supervisorEmail: z.string().email("Valid supervisor email is required"),
+  supervisorEmail: z
+    .string()
+    .trim()
+    .email("Valid supervisor email is required")
+    .transform(normalizeEmail),
 });
 
 const addEntrySchema = z.object({
@@ -147,6 +155,29 @@ export async function submitTimesheet(id: string): Promise<{ error?: string }> {
 
   revalidatePath("/dashboard");
   revalidatePath(`/timesheets/${id}`);
+  return {};
+}
+
+export async function sendTestSupervisorEmail(
+  id: string
+): Promise<{ error?: string }> {
+  if (process.env.NODE_ENV !== "development") {
+    return { error: "Test email is only available in development" };
+  }
+
+  const dbUser = await getDbUser();
+
+  const timesheet = await CloudDatabase.getTimesheetById(id);
+  if (!timesheet || timesheet.employee_user_id !== dbUser.id) {
+    return { error: "Not authorized" };
+  }
+
+  try {
+    await sendSupervisorTestEmail(timesheet.supervisor_email);
+  } catch {
+    return { error: "Could not send test email" };
+  }
+
   return {};
 }
 

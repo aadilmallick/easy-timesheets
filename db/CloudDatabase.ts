@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { normalizeEmail } from "@/lib/email-address";
 
 const sql = neon(process.env.DATABASE_URL!);
 
@@ -47,24 +48,36 @@ export class CloudDatabase {
     email: string;
     name?: string;
   }): Promise<User> {
-    // Handle both unique constraints: clerk_user_id and email.
-    // A row may already exist under either — link them by updating whichever matches.
+    const email = normalizeEmail(params.email);
+
+    const existingRows = await sql`
+      SELECT * FROM users
+      WHERE clerk_user_id = ${params.clerkUserId}
+         OR LOWER(email) = ${email}
+         OR email = ${params.email}
+      LIMIT 1
+    `;
+
+    if (existingRows[0]) {
+      const existing = existingRows[0] as User;
+      const rows = await sql`
+        UPDATE users
+        SET clerk_user_id = ${params.clerkUserId},
+            email = ${email},
+            name = COALESCE(${params.name ?? null}, name)
+        WHERE id = ${existing.id}
+        RETURNING *
+      `;
+      return rows[0] as User;
+    }
+
     const rows = await sql`
       INSERT INTO users (clerk_user_id, email, name)
-      VALUES (${params.clerkUserId}, ${params.email}, ${params.name ?? null})
+      VALUES (${params.clerkUserId}, ${email}, ${params.name ?? null})
       ON CONFLICT (clerk_user_id)
         DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name
       RETURNING *
-    `.catch(async () => {
-      // email unique constraint violation — link the existing row to this Clerk user
-      return sql`
-        UPDATE users
-        SET clerk_user_id = ${params.clerkUserId},
-            name = COALESCE(${params.name ?? null}, name)
-        WHERE email = ${params.email}
-        RETURNING *
-      `;
-    });
+    `;
     return rows[0] as User;
   }
 
@@ -76,8 +89,9 @@ export class CloudDatabase {
   }
 
   static async getUserByEmail(email: string): Promise<User | null> {
+    const normalizedEmail = normalizeEmail(email);
     const rows = await sql`
-      SELECT * FROM users WHERE email = ${email}
+      SELECT * FROM users WHERE LOWER(email) = ${normalizedEmail}
     `;
     return (rows[0] as User) ?? null;
   }
@@ -92,8 +106,10 @@ export class CloudDatabase {
     startDate: string;
     endDate: string;
   }): Promise<Timesheet> {
+    const employeeEmail = normalizeEmail(params.employeeEmail);
+    const supervisorEmail = normalizeEmail(params.supervisorEmail);
     const supervisorUser = await CloudDatabase.getUserByEmail(
-      params.supervisorEmail
+      supervisorEmail,
     );
 
     const rows = await sql`
@@ -103,8 +119,8 @@ export class CloudDatabase {
         start_date, end_date, status
       )
       VALUES (
-        ${params.title}, ${params.employeeUserId}, ${params.employeeEmail},
-        ${supervisorUser?.id ?? null}, ${params.supervisorEmail},
+        ${params.title}, ${params.employeeUserId}, ${employeeEmail},
+        ${supervisorUser?.id ?? null}, ${supervisorEmail},
         ${params.startDate}, ${params.endDate}, 'draft'
       )
       RETURNING *
@@ -129,7 +145,7 @@ export class CloudDatabase {
   }
 
   static async getAssignedTimesheets(
-    supervisorUserId: string
+    supervisorUserId: string,
   ): Promise<Timesheet[]> {
     const rows = await sql`
       SELECT * FROM timesheets
@@ -146,12 +162,16 @@ export class CloudDatabase {
       supervisorEmail?: string;
       startDate?: string;
       endDate?: string;
-    }
+    },
   ): Promise<Timesheet> {
     let supervisorUserId: string | null | undefined = undefined;
-    if (params.supervisorEmail) {
+    const supervisorEmail = params.supervisorEmail
+      ? normalizeEmail(params.supervisorEmail)
+      : undefined;
+
+    if (supervisorEmail) {
       const supervisorUser = await CloudDatabase.getUserByEmail(
-        params.supervisorEmail
+        supervisorEmail,
       );
       supervisorUserId = supervisorUser?.id ?? null;
     }
@@ -159,9 +179,13 @@ export class CloudDatabase {
     const rows = await sql`
       UPDATE timesheets SET
         title = COALESCE(${params.title ?? null}, title),
-        supervisor_email = COALESCE(${params.supervisorEmail ?? null}, supervisor_email),
+        supervisor_email = COALESCE(${
+      supervisorEmail ?? null
+    }, supervisor_email),
         supervisor_user_id = CASE
-          WHEN ${params.supervisorEmail ?? null} IS NOT NULL THEN ${supervisorUserId ?? null}
+          WHEN ${supervisorEmail ?? null} IS NOT NULL THEN ${
+      supervisorUserId ?? null
+    }
           ELSE supervisor_user_id
         END,
         start_date = COALESCE(${params.startDate ?? null}, start_date),
@@ -173,14 +197,20 @@ export class CloudDatabase {
     return rows[0] as Timesheet;
   }
 
-  static async deleteTimesheet(id: string, employeeUserId: string): Promise<void> {
+  static async deleteTimesheet(
+    id: string,
+    employeeUserId: string,
+  ): Promise<void> {
     await sql`
       DELETE FROM timesheets
       WHERE id = ${id} AND employee_user_id = ${employeeUserId}
     `;
   }
 
-  static async submitTimesheet(id: string, employeeUserId: string): Promise<Timesheet> {
+  static async submitTimesheet(
+    id: string,
+    employeeUserId: string,
+  ): Promise<Timesheet> {
     const rows = await sql`
       UPDATE timesheets SET
         status = 'submitted',
@@ -194,7 +224,7 @@ export class CloudDatabase {
 
   static async updateTimesheetStatus(
     id: string,
-    status: TimesheetStatus
+    status: TimesheetStatus,
   ): Promise<Timesheet> {
     const rows = await sql`
       UPDATE timesheets SET status = ${status}, updated_at = NOW()
@@ -214,7 +244,9 @@ export class CloudDatabase {
   }): Promise<TimesheetEntry> {
     const rows = await sql`
       INSERT INTO timesheet_entries (timesheet_id, date, hours, description)
-      VALUES (${params.timesheetId}, ${params.date}, ${params.hours}, ${params.description ?? null})
+      VALUES (${params.timesheetId}, ${params.date}, ${params.hours}, ${
+      params.description ?? null
+    })
       RETURNING *
     `;
     return rows[0] as TimesheetEntry;
@@ -222,7 +254,7 @@ export class CloudDatabase {
 
   static async getEntryForTimesheetOnDate(
     timesheetId: string,
-    date: string
+    date: string,
   ): Promise<TimesheetEntry | null> {
     const rows = await sql`
       SELECT * FROM timesheet_entries
@@ -238,7 +270,7 @@ export class CloudDatabase {
       timesheetId: string;
       hours: number;
       description?: string;
-    }
+    },
   ): Promise<TimesheetEntry | null> {
     const rows = await sql`
       UPDATE timesheet_entries SET
@@ -251,7 +283,9 @@ export class CloudDatabase {
     return (rows[0] as TimesheetEntry) ?? null;
   }
 
-  static async getEntriesForTimesheet(timesheetId: string): Promise<TimesheetEntry[]> {
+  static async getEntriesForTimesheet(
+    timesheetId: string,
+  ): Promise<TimesheetEntry[]> {
     const rows = await sql`
       SELECT * FROM timesheet_entries
       WHERE timesheet_id = ${timesheetId}
@@ -323,11 +357,12 @@ export class CloudDatabase {
 
   static async linkSupervisorByEmail(
     email: string,
-    userId: string
+    userId: string,
   ): Promise<void> {
+    const normalizedEmail = normalizeEmail(email);
     await sql`
       UPDATE timesheets SET supervisor_user_id = ${userId}
-      WHERE supervisor_email = ${email} AND supervisor_user_id IS NULL
+      WHERE LOWER(supervisor_email) = ${normalizedEmail} AND supervisor_user_id IS NULL
     `;
   }
 }

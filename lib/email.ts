@@ -57,3 +57,17 @@ export async function sendTimesheetSubmittedEmail(params: {
     `,
   });
 }
+
+export async function sendSupervisorTestEmail(supervisorEmail: string) {
+  if (!resend) {
+    throw new Error("RESEND_API_KEY not set");
+  }
+
+  await resend.emails.send({
+    from: `Timesheets <${resendEmail}>`,
+    to: supervisorEmail,
+    subject: "Testing",
+    text: "testing",
+    html: "testing",
+  });
+}

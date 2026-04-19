@@ -38,7 +38,7 @@ export default async function DashboardPage() {
   const name = `${clerkUser?.firstName ?? ""} ${clerkUser?.lastName ?? ""}`.trim();
 
   const dbUser = await CloudDatabase.upsertUser({ clerkUserId: userId, email, name });
-  await CloudDatabase.linkSupervisorByEmail(email, dbUser.id);
+  await CloudDatabase.linkSupervisorByEmail(dbUser.email, dbUser.id);
 
   const [myTimesheets, assignedTimesheets] = await Promise.all([
     CloudDatabase.getMyTimesheets(dbUser.id),
@@ -51,7 +51,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground text-sm">
-            Welcome back, {name || email}
+            Welcome back, {name || dbUser.email}
           </p>
         </div>
         <CreateTimesheetDialog />
