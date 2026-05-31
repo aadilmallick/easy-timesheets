@@ -1,11 +1,9 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import { CloudDatabase } from "@/db/CloudDatabase";
-import { TimesheetDetail } from "./TimesheetDetail";
+import { SharedTimesheetDetail } from "./SharedTimesheetDetail";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
-export default async function TimesheetPage({
+export default async function SharedTimesheetPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -25,19 +23,21 @@ export default async function TimesheetPage({
   ]);
 
   if (!timesheet) notFound();
-  if (timesheet.employee_user_id !== dbUser.id) {
-    redirect("/dashboard");
+
+  let authorizedTimesheet = timesheet;
+
+  if (authorizedTimesheet.supervisor_user_id !== dbUser.id) {
+    await CloudDatabase.linkSupervisorByEmail(dbUser.email, dbUser.id);
+    const refreshed = await CloudDatabase.getTimesheetById(id);
+    if (!refreshed || refreshed.supervisor_user_id !== dbUser.id) {
+      redirect("/dashboard");
+    }
+    authorizedTimesheet = refreshed;
   }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <TimesheetDetail
-        timesheet={timesheet}
-        entries={entries}
-        employeeName={name || dbUser.email}
-        showTestEmailButton={process.env.NODE_ENV === "development"}
-        shareUrl={`${appUrl}/timesheets/share/${timesheet.id}`}
-      />
+      <SharedTimesheetDetail timesheet={authorizedTimesheet} entries={entries} />
     </div>
   );
 }

@@ -321,6 +321,14 @@ export class CloudDatabase {
     return rows[0] as TimesheetEntry;
   }
 
+  static async approveTimesheetEntries(timesheetId: string): Promise<void> {
+    await sql`
+      UPDATE timesheet_entries
+      SET approval_status = 'approved', updated_at = NOW()
+      WHERE timesheet_id = ${timesheetId}
+    `;
+  }
+
   static async getPendingEntryCount(timesheetId: string): Promise<number> {
     const rows = await sql`
       SELECT COUNT(*) as count FROM timesheet_entries
@@ -353,6 +361,16 @@ export class CloudDatabase {
       UPDATE timesheets SET status = ${newStatus}, updated_at = NOW()
       WHERE id = ${timesheetId} AND status = 'submitted'
     `;
+  }
+
+  static async approveTimesheet(timesheetId: string): Promise<Timesheet | null> {
+    const rows = await sql`
+      UPDATE timesheets
+      SET status = 'approved', updated_at = NOW()
+      WHERE id = ${timesheetId}
+      RETURNING *
+    `;
+    return (rows[0] as Timesheet) ?? null;
   }
 
   static async linkSupervisorByEmail(

@@ -326,3 +326,27 @@ export async function rejectEntry(
   revalidatePath("/dashboard");
   return {};
 }
+
+export async function approveSharedTimesheet(
+  timesheetId: string
+): Promise<{ error?: string }> {
+  const dbUser = await getDbUser();
+
+  const timesheet = await CloudDatabase.getTimesheetById(timesheetId);
+  if (!timesheet || timesheet.supervisor_user_id !== dbUser.id) {
+    return { error: "Not authorized" };
+  }
+
+  if (timesheet.status === "approved") {
+    return {};
+  }
+
+  await CloudDatabase.approveTimesheetEntries(timesheetId);
+  await CloudDatabase.approveTimesheet(timesheetId);
+
+  revalidatePath(`/timesheets/share/${timesheetId}`);
+  revalidatePath(`/review/${timesheetId}`);
+  revalidatePath(`/timesheets/${timesheetId}`);
+  revalidatePath("/dashboard");
+  return {};
+}

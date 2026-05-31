@@ -318,14 +318,17 @@ export function TimesheetDetail({
   entries,
   employeeName,
   showTestEmailButton,
+  shareUrl,
 }: {
   timesheet: Timesheet;
   entries: TimesheetEntry[];
   employeeName: string;
   showTestEmailButton: boolean;
+  shareUrl: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const isDraft = timesheet.status === "draft";
+  const canShare = timesheet.status !== "draft" && timesheet.status !== "approved";
 
   const totalHours = entries.reduce((sum, e) => sum + Number(e.hours), 0);
 
@@ -351,6 +354,15 @@ export function TimesheetDetail({
       if (res.error) toast.error(res.error);
       else toast.success("Test email sent");
     });
+  };
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Share link copied");
+    } catch {
+      toast.error("Could not copy share link");
+    }
   };
 
   return (
@@ -380,6 +392,15 @@ export function TimesheetDetail({
           >
             {timesheet.status}
           </span>
+          {canShare && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShare}
+            >
+              Share
+            </Button>
+          )}
           {showTestEmailButton && (
             <Button
               variant="outline"
