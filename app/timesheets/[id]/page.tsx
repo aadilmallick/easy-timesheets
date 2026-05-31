@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import { CloudDatabase } from "@/db/CloudDatabase";
+import { createTimesheetShareToken } from "@/lib/timesheet-share";
 import { TimesheetDetail } from "./TimesheetDetail";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -29,6 +30,8 @@ export default async function TimesheetPage({
     redirect("/dashboard");
   }
 
+  const shareToken = createTimesheetShareToken(timesheet.id);
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <TimesheetDetail
@@ -36,7 +39,7 @@ export default async function TimesheetPage({
         entries={entries}
         employeeName={name || dbUser.email}
         showTestEmailButton={process.env.NODE_ENV === "development"}
-        shareUrl={`${appUrl}/timesheets/share/${timesheet.id}`}
+        shareUrl={`${appUrl}/timesheets/preview/${shareToken}`}
       />
     </div>
   );
