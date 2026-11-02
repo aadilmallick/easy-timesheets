@@ -227,6 +227,12 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
   const [isPending, startTransition] = useTransition();
 
   const today = getDateOnlyValue(new Date());
+  const initialEndDate = getDateOnlyValue(timesheet.end_date);
+  const [endDate, setEndDate] = useState(initialEndDate);
+
+  const isEndDateChanged = endDate !== initialEndDate;
+  const minEndDate =
+    isEndDateChanged || initialEndDate >= today ? today : initialEndDate;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -248,7 +254,15 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          setEndDate(initialEndDate);
+        }
+      }}
+    >
       <DialogTrigger render={<Button variant="outline" size="sm" />}>
         Edit
       </DialogTrigger>
@@ -283,8 +297,9 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
                 id="edit-end"
                 name="endDate"
                 type="date"
-                defaultValue={getDateOnlyValue(timesheet.end_date)}
-                min={today}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                min={minEndDate}
                 required
               />
             </div>
