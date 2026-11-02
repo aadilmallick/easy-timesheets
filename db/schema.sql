@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (LOWER(email));
+
 DO $$ BEGIN
   CREATE TYPE timesheet_status AS ENUM ('draft', 'submitted', 'approved', 'rejected');
 EXCEPTION WHEN duplicate_object THEN null;
@@ -25,6 +27,9 @@ CREATE TABLE IF NOT EXISTS timesheets (
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   submitted_at TIMESTAMPTZ
 );
+
+CREATE INDEX IF NOT EXISTS timesheets_supervisor_email_lower_idx
+  ON timesheets (LOWER(supervisor_email));
 
 DO $$ BEGIN
   CREATE TYPE entry_status AS ENUM ('pending', 'approved', 'rejected');

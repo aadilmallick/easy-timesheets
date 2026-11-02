@@ -1,7 +1,32 @@
+import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+
+export const metadata: Metadata = {
+  title: "Easy Timesheets",
+  description:
+    "Easy Timesheets gives teams a lightweight way to log hours, assign supervisors, and submit timesheets for approval.",
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    title: "Easy Timesheets",
+    description:
+      "Log hours, assign supervisors, and handle timesheet approvals without spreadsheet overhead.",
+    url: "/",
+  },
+  twitter: {
+    title: "Easy Timesheets",
+    description:
+      "Log hours, assign supervisors, and handle timesheet approvals without spreadsheet overhead.",
+  },
+};
 
 export default async function HomePage() {
   const { userId } = await auth();

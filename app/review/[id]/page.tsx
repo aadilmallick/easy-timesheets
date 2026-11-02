@@ -27,7 +27,7 @@ export default async function ReviewPage({
   // Allow review if user is the assigned supervisor
   if (timesheet.supervisor_user_id !== dbUser.id) {
     // Could be a brand-new user following an email link — try linking
-    await CloudDatabase.linkSupervisorByEmail(email, dbUser.id);
+    await CloudDatabase.linkSupervisorByEmail(dbUser.email, dbUser.id);
     const refreshed = await CloudDatabase.getTimesheetById(id);
     if (refreshed?.supervisor_user_id !== dbUser.id) {
       redirect("/dashboard");
