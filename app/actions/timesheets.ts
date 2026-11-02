@@ -14,7 +14,7 @@ import {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function getDbUser() {
+export async function getDbUser() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 

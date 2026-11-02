@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Roboto, Roboto_Mono } from "next/font/google";
 import { ClerkProvider, Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/sonner";
+import { ReactQueryProvider } from "./ReactQueryProvider";
 import "./globals.css";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -63,6 +64,7 @@ export default function RootLayout({
         className={`${RobotoSans.variable} ${RobotoMono.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col bg-background text-foreground">
+          <ReactQueryProvider>
           <header className="border-b bg-white px-6 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm">
             <a
               href="/dashboard"
@@ -87,6 +89,7 @@ export default function RootLayout({
           </header>
           <main className="flex-1">{children}</main>
           <Toaster richColors />
+          </ReactQueryProvider>
         </body>
       </html>
     </ClerkProvider>

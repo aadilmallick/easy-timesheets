@@ -12,6 +12,7 @@ import {
   updateEntry,
   updateTimesheet,
 } from "@/app/actions/timesheets";
+import { getTimesheetDetailForPolling } from "@/app/actions/polling";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTimesheetPolling } from "@/hooks/useTimesheetPolling";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
@@ -336,14 +338,20 @@ export function TimesheetDetail({
   shareUrl: string;
 }) {
   const [isPending, startTransition] = useTransition();
-  const isDraft = timesheet.status === "draft";
-  const canShare = timesheet.status !== "draft" && timesheet.status !== "approved";
+  const { data } = useTimesheetPolling({
+    queryKey: ["timesheet-detail", timesheet.id],
+    queryFn: () => getTimesheetDetailForPolling(timesheet.id),
+  });
+  const liveTimesheet = data?.timesheet ?? timesheet;
+  const liveEntries = data?.entries ?? entries;
+  const isDraft = liveTimesheet.status === "draft";
+  const canShare = liveTimesheet.status !== "draft" && liveTimesheet.status !== "approved";
 
-  const totalHours = entries.reduce((sum, e) => sum + Number(e.hours), 0);
+  const totalHours = liveEntries.reduce((sum, e) => sum + Number(e.hours), 0);
 
   const handleSubmit = () => {
     startTransition(async () => {
-      const res = await submitTimesheet(timesheet.id);
+      const res = await submitTimesheet(liveTimesheet.id);
       if (res.error) toast.error(res.error);
       else toast.success("Timesheet submitted for approval!");
     });
@@ -351,7 +359,7 @@ export function TimesheetDetail({
 
   const handleDeleteEntry = (entryId: string) => {
     startTransition(async () => {
-      const res = await deleteEntry(entryId, timesheet.id);
+      const res = await deleteEntry(entryId, liveTimesheet.id);
       if (res.error) toast.error(res.error);
       else toast.success("Entry removed");
     });
@@ -359,7 +367,7 @@ export function TimesheetDetail({
 
   const handleTestEmail = () => {
     startTransition(async () => {
-      const res = await sendTestSupervisorEmail(timesheet.id);
+      const res = await sendTestSupervisorEmail(liveTimesheet.id);
       if (res.error) toast.error(res.error);
       else toast.success("Test email sent");
     });
@@ -387,19 +395,19 @@ export function TimesheetDetail({
               ← Dashboard
             </Link>
           </div>
-          <h1 className="text-2xl font-bold">{timesheet.title}</h1>
+          <h1 className="text-2xl font-bold">{liveTimesheet.title}</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {formatDate(timesheet.start_date)} –{" "}
-            {formatDate(timesheet.end_date)}
+            {formatDate(liveTimesheet.start_date)} –{" "}
+            {formatDate(liveTimesheet.end_date)}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
-              statusColors[timesheet.status]
+              statusColors[liveTimesheet.status]
             }`}
           >
-            {timesheet.status}
+            {liveTimesheet.status}
           </span>
           {canShare && (
             <Button
@@ -422,11 +430,11 @@ export function TimesheetDetail({
           )}
           {isDraft && (
             <>
-              <EditTimesheetDialog timesheet={timesheet} />
+              <EditTimesheetDialog timesheet={liveTimesheet} />
               <Button
                 size="sm"
                 onClick={handleSubmit}
-                disabled={isPending || entries.length === 0}
+                disabled={isPending || liveEntries.length === 0}
               >
                 Submit for Approval
               </Button>
@@ -441,7 +449,7 @@ export function TimesheetDetail({
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
         <div>
           <p className="text-muted-foreground">Supervisor</p>
-          <p className="font-medium">{timesheet.supervisor_email}</p>
+          <p className="font-medium">{liveTimesheet.supervisor_email}</p>
         </div>
         <div>
           <p className="text-muted-foreground">Employee</p>
@@ -461,15 +469,15 @@ export function TimesheetDetail({
           <h2 className="text-lg font-semibold">Time Entries</h2>
           {isDraft && (
             <AddEntryDialog
-              timesheetId={timesheet.id}
-              startDate={timesheet.start_date}
-              endDate={timesheet.end_date}
-              existingDates={entries.map((entry) => getDateOnlyValue(entry.date))}
+              timesheetId={liveTimesheet.id}
+              startDate={liveTimesheet.start_date}
+              endDate={liveTimesheet.end_date}
+              existingDates={liveEntries.map((entry) => getDateOnlyValue(entry.date))}
             />
           )}
         </div>
 
-        {entries.length === 0
+        {liveEntries.length === 0
           ? (
             <p className="text-muted-foreground text-sm py-8 text-center">
               No entries yet.{isDraft ? " Add hours to get started." : ""}
@@ -489,7 +497,7 @@ export function TimesheetDetail({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {entries.map((entry) => (
+                {liveEntries.map((entry) => (
                   <TableRow key={entry.id}>
                     <TableCell>{formatDate(entry.date)}</TableCell>
                     <TableCell>{Number(entry.hours).toFixed(1)}</TableCell>
@@ -510,7 +518,7 @@ export function TimesheetDetail({
                         <div className="flex justify-end gap-1">
                           <EditEntryDialog
                             entry={entry}
-                            timesheetId={timesheet.id}
+                            timesheetId={liveTimesheet.id}
                           />
                           <Button
                             variant="ghost"
