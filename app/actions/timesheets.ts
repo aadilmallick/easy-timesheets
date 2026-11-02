@@ -130,15 +130,14 @@ export async function updateTimesheet(
 
   const today = getDateOnlyValue(new Date());
   const existingEndDate = getDateOnlyValue(timesheet.end_date);
-  const isEndDatePassed = existingEndDate < today;
 
   let newEndDate = existingEndDate;
   if (parsed.data.endDate && parsed.data.endDate !== existingEndDate) {
-    if (isEndDatePassed) {
-      return { error: "End date cannot be changed because the date has already passed" };
-    }
     const newEndDateNormalized = getDateOnlyValue(parsed.data.endDate);
     const startDateNormalized = getDateOnlyValue(timesheet.start_date);
+    if (newEndDateNormalized < today) {
+      return { error: "End date cannot be before today's date" };
+    }
     if (newEndDateNormalized < startDateNormalized) {
       return { error: "End date cannot be before start date" };
     }
@@ -148,6 +147,7 @@ export async function updateTimesheet(
   await CloudDatabase.updateTimesheet(id, {
     title: parsed.data.title,
     supervisorEmail: parsed.data.supervisorEmail,
+    startDate: parsed.data.startDate || undefined,
     endDate: newEndDate,
   });
 

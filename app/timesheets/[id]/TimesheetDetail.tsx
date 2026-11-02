@@ -227,15 +227,11 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
   const [isPending, startTransition] = useTransition();
 
   const today = getDateOnlyValue(new Date());
-  const isEndDatePassed = getDateOnlyValue(timesheet.end_date) < today;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set("startDate", getDateOnlyValue(timesheet.start_date));
-    if (isEndDatePassed) {
-      formData.set("endDate", getDateOnlyValue(timesheet.end_date));
-    }
     startTransition(async () => {
       const res = await updateTimesheet(timesheet.id, formData);
       if (res.error) {
@@ -288,8 +284,7 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
                 name="endDate"
                 type="date"
                 defaultValue={getDateOnlyValue(timesheet.end_date)}
-                min={getDateOnlyValue(timesheet.start_date)}
-                disabled={isEndDatePassed}
+                min={today}
                 required
               />
             </div>
