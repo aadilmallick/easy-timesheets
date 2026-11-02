@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { ReactQueryProvider } from "./ReactQueryProvider";
 import "./globals.css";
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
 const RobotoSans = Roboto({
   variable: "--font-roboto-sans",
   subsets: ["latin"],
@@ -16,8 +18,38 @@ const RobotoMono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Easy Timesheets",
-  description: "Timesheet approval made simple",
+  metadataBase: new URL(appUrl),
+  title: {
+    default: "Easy Timesheets",
+    template: "%s | Easy Timesheets",
+  },
+  description:
+    "Easy Timesheets helps teams track work hours, submit timesheets, and streamline manager approvals.",
+  applicationName: "Easy Timesheets",
+  keywords: [
+    "timesheets",
+    "time tracking",
+    "employee hours",
+    "manager approvals",
+    "payroll workflow",
+  ],
+  authors: [{ name: "Easy Timesheets" }],
+  creator: "Easy Timesheets",
+  publisher: "Easy Timesheets",
+  openGraph: {
+    type: "website",
+    url: appUrl,
+    siteName: "Easy Timesheets",
+    title: "Easy Timesheets",
+    description:
+      "Track employee hours, submit timesheets, and keep approvals moving in one simple workflow.",
+  },
+  twitter: {
+    card: "summary",
+    title: "Easy Timesheets",
+    description:
+      "Track employee hours, submit timesheets, and keep approvals moving in one simple workflow.",
+  },
 };
 
 export default function RootLayout({

@@ -7,7 +7,9 @@ import type { Timesheet, TimesheetEntry } from "@/db/CloudDatabase";
 import {
   addEntry,
   deleteEntry,
+  sendTestSupervisorEmail,
   submitTimesheet,
+  updateEntry,
   updateTimesheet,
 } from "@/app/actions/timesheets";
 import { getTimesheetDetailForPolling } from "@/app/actions/polling";
@@ -15,8 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { formatDate, getDateOnlyValue } from "@/lib/date";
 import {
   Dialog,
   DialogContent,
@@ -47,15 +49,17 @@ const entryStatusColors: Record<string, string> = {
   rejected: "bg-red-100 text-red-700",
 };
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function AddEntryDialog({ timesheetId }: { timesheetId: string }) {
+function AddEntryDialog({
+  timesheetId,
+  startDate,
+  endDate,
+  existingDates,
+}: {
+  timesheetId: string;
+  startDate: string;
+  endDate: string;
+  existingDates: string[];
+}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -63,6 +67,13 @@ function AddEntryDialog({ timesheetId }: { timesheetId: string }) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set("timesheetId", timesheetId);
+
+    const selectedDate = getDateOnlyValue(String(formData.get("date") ?? ""));
+    if (existingDates.includes(selectedDate)) {
+      toast.error("An entry already exists for that date");
+      return;
+    }
+
     startTransition(async () => {
       const res = await addEntry(formData);
       if (res.error) {
@@ -85,7 +96,14 @@ function AddEntryDialog({ timesheetId }: { timesheetId: string }) {
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-1.5">
             <Label htmlFor="date">Date</Label>
-            <Input id="date" name="date" type="date" required />
+            <Input
+              id="date"
+              name="date"
+              type="date"
+              min={getDateOnlyValue(startDate)}
+              max={getDateOnlyValue(endDate)}
+              required
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="hours">Hours</Label>
@@ -127,13 +145,99 @@ function AddEntryDialog({ timesheetId }: { timesheetId: string }) {
   );
 }
 
-function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
+function EditEntryDialog({
+  entry,
+  timesheetId,
+}: {
+  entry: TimesheetEntry;
+  timesheetId: string;
+}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    formData.set("timesheetId", timesheetId);
+
+    startTransition(async () => {
+      const res = await updateEntry(entry.id, formData);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Entry updated");
+        setOpen(false);
+      }
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+        Edit
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Entry</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="mt-2 space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor={`edit-hours-${entry.id}`}>Hours</Label>
+            <Input
+              id={`edit-hours-${entry.id}`}
+              name="hours"
+              type="number"
+              step="0.5"
+              min="0.5"
+              max="24"
+              defaultValue={String(Number(entry.hours))}
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`edit-description-${entry.id}`}>
+              Description (optional)
+            </Label>
+            <Textarea
+              id={`edit-description-${entry.id}`}
+              name="description"
+              defaultValue={entry.description ?? ""}
+              placeholder="What did you work on?"
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const today = getDateOnlyValue(new Date());
+  const isEndDatePassed = getDateOnlyValue(timesheet.end_date) < today;
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    formData.set("startDate", getDateOnlyValue(timesheet.start_date));
+    if (isEndDatePassed) {
+      formData.set("endDate", getDateOnlyValue(timesheet.end_date));
+    }
     startTransition(async () => {
       const res = await updateTimesheet(timesheet.id, formData);
       if (res.error) {
@@ -175,8 +279,8 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
                 id="edit-start"
                 name="startDate"
                 type="date"
-                defaultValue={new Date(timesheet.start_date).toISOString().slice(0, 10)}
-                required
+                defaultValue={getDateOnlyValue(timesheet.start_date)}
+                disabled
               />
             </div>
             <div className="space-y-1.5">
@@ -185,7 +289,9 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
                 id="edit-end"
                 name="endDate"
                 type="date"
-                defaultValue={new Date(timesheet.end_date).toISOString().slice(0, 10)}
+                defaultValue={getDateOnlyValue(timesheet.end_date)}
+                min={getDateOnlyValue(timesheet.start_date)}
+                disabled={isEndDatePassed}
                 required
               />
             </div>
@@ -222,10 +328,14 @@ export function TimesheetDetail({
   timesheet,
   entries,
   employeeName,
+  showTestEmailButton,
+  shareUrl,
 }: {
   timesheet: Timesheet;
   entries: TimesheetEntry[];
   employeeName: string;
+  showTestEmailButton: boolean;
+  shareUrl: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const { data } = useTimesheetPolling({
@@ -235,12 +345,13 @@ export function TimesheetDetail({
   const liveTimesheet = data?.timesheet ?? timesheet;
   const liveEntries = data?.entries ?? entries;
   const isDraft = liveTimesheet.status === "draft";
+  const canShare = liveTimesheet.status !== "draft" && liveTimesheet.status !== "approved";
 
   const totalHours = liveEntries.reduce((sum, e) => sum + Number(e.hours), 0);
 
   const handleSubmit = () => {
     startTransition(async () => {
-      const res = await submitTimesheet(timesheet.id);
+      const res = await submitTimesheet(liveTimesheet.id);
       if (res.error) toast.error(res.error);
       else toast.success("Timesheet submitted for approval!");
     });
@@ -248,10 +359,27 @@ export function TimesheetDetail({
 
   const handleDeleteEntry = (entryId: string) => {
     startTransition(async () => {
-      const res = await deleteEntry(entryId, timesheet.id);
+      const res = await deleteEntry(entryId, liveTimesheet.id);
       if (res.error) toast.error(res.error);
       else toast.success("Entry removed");
     });
+  };
+
+  const handleTestEmail = () => {
+    startTransition(async () => {
+      const res = await sendTestSupervisorEmail(liveTimesheet.id);
+      if (res.error) toast.error(res.error);
+      else toast.success("Test email sent");
+    });
+  };
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Share link copied");
+    } catch {
+      toast.error("Could not copy share link");
+    }
   };
 
   return (
@@ -281,6 +409,25 @@ export function TimesheetDetail({
           >
             {liveTimesheet.status}
           </span>
+          {canShare && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShare}
+            >
+              Share
+            </Button>
+          )}
+          {showTestEmailButton && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestEmail}
+              disabled={isPending}
+            >
+              Test Email
+            </Button>
+          )}
           {isDraft && (
             <>
               <EditTimesheetDialog timesheet={liveTimesheet} />
@@ -320,11 +467,18 @@ export function TimesheetDetail({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Time Entries</h2>
-           {isDraft && <AddEntryDialog timesheetId={liveTimesheet.id} />}
-         </div>
+          {isDraft && (
+            <AddEntryDialog
+              timesheetId={liveTimesheet.id}
+              startDate={liveTimesheet.start_date}
+              endDate={liveTimesheet.end_date}
+              existingDates={liveEntries.map((entry) => getDateOnlyValue(entry.date))}
+            />
+          )}
+        </div>
 
-         {liveEntries.length === 0
-           ? (
+        {liveEntries.length === 0
+          ? (
             <p className="text-muted-foreground text-sm py-8 text-center">
               No entries yet.{isDraft ? " Add hours to get started." : ""}
             </p>
@@ -343,7 +497,7 @@ export function TimesheetDetail({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                 {liveEntries.map((entry) => (
+                {liveEntries.map((entry) => (
                   <TableRow key={entry.id}>
                     <TableCell>{formatDate(entry.date)}</TableCell>
                     <TableCell>{Number(entry.hours).toFixed(1)}</TableCell>
@@ -361,15 +515,21 @@ export function TimesheetDetail({
                     </TableCell>
                     {isDraft && (
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteEntry(entry.id)}
-                          disabled={isPending}
-                        >
-                          Remove
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <EditEntryDialog
+                            entry={entry}
+                            timesheetId={liveTimesheet.id}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteEntry(entry.id)}
+                            disabled={isPending}
+                          >
+                            Remove
+                          </Button>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>

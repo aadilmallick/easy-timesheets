@@ -26,6 +26,7 @@ import type { Timesheet } from "@/db/CloudDatabase";
 import { deleteTimesheet, submitTimesheet } from "@/app/actions/timesheets";
 import { getDashboardTimesheetsForPolling } from "@/app/actions/polling";
 import { useTimesheetPolling } from "@/hooks/useTimesheetPolling";
+import { formatDate } from "@/lib/date";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -36,14 +37,6 @@ const statusColors: Record<string, string> = {
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
 };
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 function DeleteTimesheetDialog({
   id,

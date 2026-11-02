@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { CloudDatabase } from "@/db/CloudDatabase";
-import { sendTimesheetSubmittedEmail } from "@/lib/email";
+import { getDateOnlyValue, isDateWithinRange } from "@/lib/date";
+import { normalizeEmail } from "@/lib/email-address";
+import {
+  sendSupervisorTestEmail,
+  sendTimesheetSubmittedEmail,
+} from "@/lib/email";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,12 +43,33 @@ const createTimesheetSchema = z.object({
   title: z.string().min(1, "Title is required"),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().min(1, "End date is required"),
-  supervisorEmail: z.string().email("Valid supervisor email is required"),
+  supervisorEmail: z
+    .string()
+    .trim()
+    .email("Valid supervisor email is required")
+    .transform(normalizeEmail),
+});
+
+const updateTimesheetSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
+  supervisorEmail: z
+    .string()
+    .trim()
+    .email("Valid supervisor email is required")
+    .transform(normalizeEmail),
 });
 
 const addEntrySchema = z.object({
   timesheetId: z.string().uuid(),
   date: z.string().min(1, "Date is required"),
+  hours: z.coerce.number().min(0.5).max(24),
+  description: z.string().optional(),
+});
+
+const updateEntrySchema = z.object({
+  timesheetId: z.string().uuid(),
   hours: z.coerce.number().min(0.5).max(24),
   description: z.string().optional(),
 });
@@ -87,8 +113,11 @@ export async function updateTimesheet(
   if (!timesheet || timesheet.employee_user_id !== dbUser.id) {
     return { error: "Not authorized" };
   }
+  if (timesheet.status !== "draft") {
+    return { error: "Only draft timesheets can be edited" };
+  }
 
-  const parsed = createTimesheetSchema.safeParse({
+  const parsed = updateTimesheetSchema.safeParse({
     title: formData.get("title"),
     startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
@@ -99,11 +128,27 @@ export async function updateTimesheet(
     return { error: parsed.error.issues[0].message };
   }
 
+  const today = getDateOnlyValue(new Date());
+  const existingEndDate = getDateOnlyValue(timesheet.end_date);
+  const isEndDatePassed = existingEndDate < today;
+
+  let newEndDate = existingEndDate;
+  if (parsed.data.endDate && parsed.data.endDate !== existingEndDate) {
+    if (isEndDatePassed) {
+      return { error: "End date cannot be changed because the date has already passed" };
+    }
+    const newEndDateNormalized = getDateOnlyValue(parsed.data.endDate);
+    const startDateNormalized = getDateOnlyValue(timesheet.start_date);
+    if (newEndDateNormalized < startDateNormalized) {
+      return { error: "End date cannot be before start date" };
+    }
+    newEndDate = newEndDateNormalized;
+  }
+
   await CloudDatabase.updateTimesheet(id, {
     title: parsed.data.title,
     supervisorEmail: parsed.data.supervisorEmail,
-    startDate: parsed.data.startDate,
-    endDate: parsed.data.endDate,
+    endDate: newEndDate,
   });
 
   revalidatePath(`/timesheets/${id}`);
@@ -143,6 +188,29 @@ export async function submitTimesheet(id: string): Promise<{ error?: string }> {
   return {};
 }
 
+export async function sendTestSupervisorEmail(
+  id: string
+): Promise<{ error?: string }> {
+  if (process.env.NODE_ENV !== "development") {
+    return { error: "Test email is only available in development" };
+  }
+
+  const dbUser = await getDbUser();
+
+  const timesheet = await CloudDatabase.getTimesheetById(id);
+  if (!timesheet || timesheet.employee_user_id !== dbUser.id) {
+    return { error: "Not authorized" };
+  }
+
+  try {
+    await sendSupervisorTestEmail(timesheet.supervisor_email);
+  } catch {
+    return { error: "Could not send test email" };
+  }
+
+  return {};
+}
+
 export async function addEntry(formData: FormData): Promise<{ error?: string }> {
   const dbUser = await getDbUser();
 
@@ -162,7 +230,24 @@ export async function addEntry(formData: FormData): Promise<{ error?: string }> 
     return { error: "Not authorized" };
   }
   if (timesheet.status !== "draft") {
-    return { error: "Cannot edit a submitted timesheet" };
+    return { error: "Only draft timesheets can be edited" };
+  }
+  if (
+    !isDateWithinRange(
+      parsed.data.date,
+      timesheet.start_date,
+      timesheet.end_date
+    )
+  ) {
+    return { error: "Entry date must be within the timesheet range" };
+  }
+
+  const existingEntry = await CloudDatabase.getEntryForTimesheetOnDate(
+    parsed.data.timesheetId,
+    parsed.data.date
+  );
+  if (existingEntry) {
+    return { error: "An entry already exists for that date" };
   }
 
   await CloudDatabase.addEntry({
@@ -186,9 +271,53 @@ export async function deleteEntry(
   if (!timesheet || timesheet.employee_user_id !== dbUser.id) {
     return { error: "Not authorized" };
   }
+  if (timesheet.status !== "draft") {
+    return { error: "Only draft timesheets can be edited" };
+  }
 
-  await CloudDatabase.deleteEntry(entryId);
+  const deleted = await CloudDatabase.deleteEntry(entryId, timesheetId);
+  if (!deleted) {
+    return { error: "Entry not found" };
+  }
+
   revalidatePath(`/timesheets/${timesheetId}`);
+  return {};
+}
+
+export async function updateEntry(
+  entryId: string,
+  formData: FormData
+): Promise<{ error?: string }> {
+  const dbUser = await getDbUser();
+
+  const parsed = updateEntrySchema.safeParse({
+    timesheetId: formData.get("timesheetId"),
+    hours: formData.get("hours"),
+    description: formData.get("description") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
+  }
+
+  const timesheet = await CloudDatabase.getTimesheetById(parsed.data.timesheetId);
+  if (!timesheet || timesheet.employee_user_id !== dbUser.id) {
+    return { error: "Not authorized" };
+  }
+  if (timesheet.status !== "draft") {
+    return { error: "Only draft timesheets can be edited" };
+  }
+
+  const entry = await CloudDatabase.updateEntry(entryId, {
+    timesheetId: parsed.data.timesheetId,
+    hours: parsed.data.hours,
+    description: parsed.data.description,
+  });
+  if (!entry) {
+    return { error: "Entry not found" };
+  }
+
+  revalidatePath(`/timesheets/${parsed.data.timesheetId}`);
   return {};
 }
 
@@ -224,6 +353,30 @@ export async function rejectEntry(
   await CloudDatabase.rejectEntry(entryId);
   await CloudDatabase.recalcTimesheetStatus(timesheetId);
   revalidatePath(`/review/${timesheetId}`);
+  revalidatePath("/dashboard");
+  return {};
+}
+
+export async function approveSharedTimesheet(
+  timesheetId: string
+): Promise<{ error?: string }> {
+  const dbUser = await getDbUser();
+
+  const timesheet = await CloudDatabase.getTimesheetById(timesheetId);
+  if (!timesheet || timesheet.supervisor_user_id !== dbUser.id) {
+    return { error: "Not authorized" };
+  }
+
+  if (timesheet.status === "approved") {
+    return {};
+  }
+
+  await CloudDatabase.approveTimesheetEntries(timesheetId);
+  await CloudDatabase.approveTimesheet(timesheetId);
+
+  revalidatePath(`/timesheets/share/${timesheetId}`);
+  revalidatePath(`/review/${timesheetId}`);
+  revalidatePath(`/timesheets/${timesheetId}`);
   revalidatePath("/dashboard");
   return {};
 }

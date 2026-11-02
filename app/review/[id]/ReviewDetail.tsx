@@ -8,6 +8,7 @@ import { approveEntry, rejectEntry } from "@/app/actions/timesheets";
 import { getReviewDetailForPolling } from "@/app/actions/polling";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { formatDate } from "@/lib/date";
 import {
   Table,
   TableBody,
@@ -30,14 +31,6 @@ const entryStatusColors: Record<string, string> = {
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
 };
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export function ReviewDetail({
   timesheet,
@@ -108,12 +101,12 @@ export function ReviewDetail({
         </div>
         <div>
           <p className="text-muted-foreground">Submitted</p>
-            <p className="font-medium">
-              {liveTimesheet.submitted_at
-                ? formatDate(liveTimesheet.submitted_at)
-                : "—"}
-            </p>
-          </div>
+          <p className="font-medium">
+            {liveTimesheet.submitted_at
+              ? formatDate(liveTimesheet.submitted_at)
+              : "—"}
+          </p>
+        </div>
       </div>
 
       <Separator />
