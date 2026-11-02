@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { CloudDatabase } from "@/db/CloudDatabase";
-import { isDateWithinRange } from "@/lib/date";
+import { getDateOnlyValue, isDateWithinRange } from "@/lib/date";
 import { normalizeEmail } from "@/lib/email-address";
 import {
   sendSupervisorTestEmail,
@@ -43,6 +43,17 @@ const createTimesheetSchema = z.object({
   title: z.string().min(1, "Title is required"),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().min(1, "End date is required"),
+  supervisorEmail: z
+    .string()
+    .trim()
+    .email("Valid supervisor email is required")
+    .transform(normalizeEmail),
+});
+
+const updateTimesheetSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
   supervisorEmail: z
     .string()
     .trim()
@@ -102,8 +113,11 @@ export async function updateTimesheet(
   if (!timesheet || timesheet.employee_user_id !== dbUser.id) {
     return { error: "Not authorized" };
   }
+  if (timesheet.status !== "draft") {
+    return { error: "Only draft timesheets can be edited" };
+  }
 
-  const parsed = createTimesheetSchema.safeParse({
+  const parsed = updateTimesheetSchema.safeParse({
     title: formData.get("title"),
     startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
@@ -114,11 +128,27 @@ export async function updateTimesheet(
     return { error: parsed.error.issues[0].message };
   }
 
+  const today = getDateOnlyValue(new Date());
+  const existingEndDate = getDateOnlyValue(timesheet.end_date);
+  const isEndDatePassed = existingEndDate < today;
+
+  let newEndDate = existingEndDate;
+  if (parsed.data.endDate && parsed.data.endDate !== existingEndDate) {
+    if (isEndDatePassed) {
+      return { error: "End date cannot be changed because the date has already passed" };
+    }
+    const newEndDateNormalized = getDateOnlyValue(parsed.data.endDate);
+    const startDateNormalized = getDateOnlyValue(timesheet.start_date);
+    if (newEndDateNormalized < startDateNormalized) {
+      return { error: "End date cannot be before start date" };
+    }
+    newEndDate = newEndDateNormalized;
+  }
+
   await CloudDatabase.updateTimesheet(id, {
     title: parsed.data.title,
     supervisorEmail: parsed.data.supervisorEmail,
-    startDate: parsed.data.startDate,
-    endDate: parsed.data.endDate,
+    endDate: newEndDate,
   });
 
   revalidatePath(`/timesheets/${id}`);
