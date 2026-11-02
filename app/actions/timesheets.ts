@@ -128,17 +128,23 @@ export async function updateTimesheet(
     return { error: parsed.error.issues[0].message };
   }
 
+  const startDateNormalized = getDateOnlyValue(timesheet.start_date);
+  if (
+    parsed.data.startDate &&
+    getDateOnlyValue(parsed.data.startDate) !== startDateNormalized
+  ) {
+    return { error: "Start date cannot be changed" };
+  }
+
   const today = getDateOnlyValue(new Date());
   const existingEndDate = getDateOnlyValue(timesheet.end_date);
-  const isEndDatePassed = existingEndDate < today;
 
   let newEndDate = existingEndDate;
   if (parsed.data.endDate && parsed.data.endDate !== existingEndDate) {
-    if (isEndDatePassed) {
-      return { error: "End date cannot be changed because the date has already passed" };
-    }
     const newEndDateNormalized = getDateOnlyValue(parsed.data.endDate);
-    const startDateNormalized = getDateOnlyValue(timesheet.start_date);
+    if (newEndDateNormalized < today) {
+      return { error: "End date cannot be before today's date" };
+    }
     if (newEndDateNormalized < startDateNormalized) {
       return { error: "End date cannot be before start date" };
     }
