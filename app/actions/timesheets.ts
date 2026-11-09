@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { CloudDatabase } from "@/db/CloudDatabase";
-import { getDateOnlyValue, isDateWithinRange } from "@/lib/date";
+import { getDateOnlyValue, isDateWithinRange, isValidCalendarDate } from "@/lib/date";
 import { normalizeEmail } from "@/lib/email-address";
 import {
   sendSupervisorTestEmail,
@@ -138,6 +138,10 @@ export async function updateTimesheet(
 
   const today = getDateOnlyValue(new Date());
   const existingEndDate = getDateOnlyValue(timesheet.end_date);
+
+  if (parsed.data.endDate && !isValidCalendarDate(parsed.data.endDate)) {
+    return { error: "Valid end date is required" };
+  }
 
   let newEndDate = existingEndDate;
   if (parsed.data.endDate && parsed.data.endDate !== existingEndDate) {

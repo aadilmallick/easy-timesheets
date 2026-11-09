@@ -228,11 +228,13 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
 
   const today = getDateOnlyValue(new Date());
   const initialEndDate = getDateOnlyValue(timesheet.end_date);
+  const startDate = getDateOnlyValue(timesheet.start_date);
   const [endDate, setEndDate] = useState(initialEndDate);
 
   const isEndDateChanged = endDate !== initialEndDate;
+  const changedMinDate = startDate > today ? startDate : today;
   const minEndDate =
-    isEndDateChanged || initialEndDate >= today ? today : initialEndDate;
+    isEndDateChanged || initialEndDate >= today ? changedMinDate : initialEndDate;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -292,7 +294,20 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="edit-end">End Date</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="edit-end">End Date</Label>
+                {isEndDateChanged && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setEndDate(initialEndDate)}
+                  >
+                    Restore original date
+                  </Button>
+                )}
+              </div>
               <Input
                 id="edit-end"
                 name="endDate"
