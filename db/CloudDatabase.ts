@@ -176,22 +176,24 @@ export class CloudDatabase {
       supervisorUserId = supervisorUser?.id ?? null;
     }
 
+    const hasSupervisorEmail = supervisorEmail !== undefined;
+
     const rows = await sql`
       UPDATE timesheets SET
-        title = COALESCE(${params.title ?? null}, title),
+        title = COALESCE(${params.title ?? null}::text, title),
         supervisor_email = COALESCE(${
       supervisorEmail ?? null
-    }, supervisor_email),
+    }::text, supervisor_email),
         supervisor_user_id = CASE
-          WHEN ${supervisorEmail ?? null} IS NOT NULL THEN ${
+          WHEN ${hasSupervisorEmail}::boolean THEN ${
       supervisorUserId ?? null
-    }
+    }::uuid
           ELSE supervisor_user_id
         END,
-        start_date = COALESCE(${params.startDate ?? null}, start_date),
-        end_date = COALESCE(${params.endDate ?? null}, end_date),
+        start_date = COALESCE(${params.startDate ?? null}::date, start_date),
+        end_date = COALESCE(${params.endDate ?? null}::date, end_date),
         updated_at = NOW()
-      WHERE id = ${id} AND status = 'draft'
+      WHERE id = ${id}::uuid AND status = 'draft'
       RETURNING *
     `;
     return rows[0] as Timesheet;

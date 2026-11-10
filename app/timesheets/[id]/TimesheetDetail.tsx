@@ -227,15 +227,19 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
   const [isPending, startTransition] = useTransition();
 
   const today = getDateOnlyValue(new Date());
-  const isEndDatePassed = getDateOnlyValue(timesheet.end_date) < today;
+  const initialEndDate = getDateOnlyValue(timesheet.end_date);
+  const startDate = getDateOnlyValue(timesheet.start_date);
+  const [endDate, setEndDate] = useState(initialEndDate);
+
+  const isEndDateChanged = endDate !== initialEndDate;
+  const changedMinDate = startDate > today ? startDate : today;
+  const minEndDate =
+    isEndDateChanged || initialEndDate >= today ? changedMinDate : initialEndDate;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set("startDate", getDateOnlyValue(timesheet.start_date));
-    if (isEndDatePassed) {
-      formData.set("endDate", getDateOnlyValue(timesheet.end_date));
-    }
     startTransition(async () => {
       const res = await updateTimesheet(timesheet.id, formData);
       if (res.error) {
@@ -252,7 +256,15 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          setEndDate(initialEndDate);
+        }
+      }}
+    >
       <DialogTrigger render={<Button variant="outline" size="sm" />}>
         Edit
       </DialogTrigger>
@@ -282,14 +294,27 @@ function EditTimesheetDialog({ timesheet }: { timesheet: Timesheet }) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="edit-end">End Date</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="edit-end">End Date</Label>
+                {isEndDateChanged && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setEndDate(initialEndDate)}
+                  >
+                    Restore original date
+                  </Button>
+                )}
+              </div>
               <Input
                 id="edit-end"
                 name="endDate"
                 type="date"
-                defaultValue={getDateOnlyValue(timesheet.end_date)}
-                min={getDateOnlyValue(timesheet.start_date)}
-                disabled={isEndDatePassed}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                min={minEndDate}
                 required
               />
             </div>
